@@ -1,0 +1,81 @@
+import os
+import csv
+import json
+import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+CLIENT_ID = os.getenv("CLIENT_ID")
+REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
+INSTANCE_URL = os.getenv("INSTANCE_URL")
+CSV_FILE_PATH = os.getenv("CSV_FILE_PATH")
+
+# Refresh the access token
+def get_access_token():
+    token_url = "https://login.salesforce.com/services/oauth2/token"
+    payload = {
+        "grant_type": "refresh_token",
+        "client_id": CLIENT_ID,
+        "refresh_token": REFRESH_TOKEN
+    }
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+
+    response = requests.post(token_url, data=payload, headers=headers)
+    if response.status_code == 200:
+        return response.json()["access_token"]
+    else:
+        raise Exception(f"Token refresh failed: {response.text}")
+
+# Read CSV and convert to composite format for uploading the data
+def prepare_records(csv_path):
+    records = []
+    with open(csv_path, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for i, row in enumerate(reader):
+            record = {
+                "attributes": {
+                    "type": "Mass_Upload__c",
+                    "referenceId": f"rec{i+1}"
+                },
+                "Model_No__c": row["Model_No__c"],
+                "Position__c": row["Position__c"],
+                "Type__c": row["Type__c"],
+                "OwnerId": row["OwnerId"]
+            }
+            records.append(record)
+    return records
+
+# Upload the records
+def upload_records(records, token):
+    url = f"{INSTANCE_URL}/services/data/v63.0/composite/tree/Mass_Upload__c/"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    body = { "records": records }
+
+    response = requests.post(url, headers=headers, json=body)
+    if response.status_code in [200, 201]:
+        res_json = response.json()
+        if res_json.get("hasErrors"):
+            print("Upload partially failed:")
+        else:
+            print(f"All records uploaded successfully! (HTTP {response.status_code})")
+        print(json.dumps(res_json, indent=2))
+    else:
+        print(f"Upload failed (HTTP {response.status_code})")
+        print(response.text)
+
+
+# Run the process
+if __name__ == "__main__":
+    try:
+        access_token = get_access_token()
+        print("🔐 Access token refreshed successfully.")
+        records = prepare_records(CSV_FILE_PATH)
+        upload_records(records, access_token)
+    except Exception as e:
+        print(f"Error: {e}")

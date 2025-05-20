@@ -1,0 +1,45 @@
+version 1
+
+import csv
+import json
+import requests
+
+# Constants
+ACCESS_TOKEN = '00DdM00000B48zI!AQEAQCR71Pbwp.eTlXW75yb5gTr5rAsL8fU2wFlM_KRbaFpEtVFFrL3N8LK5MMqzR_vBblOkkK3jJATYq1OVqlJpoNNh_UYo'
+INSTANCE_URL = 'https://ssadminlearn123-dev-ed.develop.my.salesforce.com'
+OBJECT_API_NAME = 'Mass_Upload__c'
+CSV_FILE_PATH = 'mass_upload_sample.csv'  # make sure it's in the same directory
+
+# Read CSV
+records = []
+with open(CSV_FILE_PATH, newline='') as csvfile:
+    reader = csv.DictReader(csvfile)
+    for i, row in enumerate(reader):
+        record = {
+            "attributes": {
+                "type": OBJECT_API_NAME,
+                "referenceId": f"rec{i+1}"
+            },
+            "Model_No__c": row['Model_No__c'],
+            "Position__c": row['Position__c'],
+            "Type__c": row['Type__c'],
+            "OwnerId": row['OwnerId']
+        }
+        records.append(record)
+
+# Prepare request
+url = f"{INSTANCE_URL}/services/data/v63.0/composite/tree/{OBJECT_API_NAME}/"
+headers = {
+    "Authorization": f"Bearer {ACCESS_TOKEN}",
+    "Content-Type": "application/json"
+}
+body = { "records": records }
+
+# Send request
+response = requests.post(url, headers=headers, data=json.dumps(body))
+
+# Handle response
+print("Status Code:", response.status_code)
+print("Response Body:", json.dumps(response.json(), indent=2))
+
+
